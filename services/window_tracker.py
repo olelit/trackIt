@@ -145,8 +145,7 @@ class WindowTrackerService(QObject):
         logger.info("WindowTrackerService stopped")
 
     def _on_dbus_window_changed(self, app_name: str, window_title: str, pid: int) -> None:
-        log_message = f"Window changed: {app_name} - {window_title}"
-        logger.info(log_message)
+        logger.debug("Window changed: %s - %s", app_name, window_title)
         window_info = WindowInfo(
             app_name=app_name or "unknown",
             window_title=window_title or "unknown",
