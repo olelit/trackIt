@@ -1,0 +1,32 @@
+[project]
+name = "trackit"
+version = "0.1.0"
+description = "Desktop time tracker for KDE Plasma 6 on Wayland"
+requires-python = ">=3.13"
+dependencies = [
+    "PySide6>=6.8",
+    "dasbus>=1.7",
+]
+
+[project.scripts]
+trackit = "trackit.__main__:main"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+packages = ["models", "services", "ui", "core", "storage"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
