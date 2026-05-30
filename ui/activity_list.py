@@ -76,9 +76,15 @@ class ActivityListWidget(QWidget):
         row_layout.addWidget(label)
         row_layout.addStretch()
 
-        activate_btn = QPushButton("▶")
-        activate_btn.setFixedWidth(30)
-        activate_btn.setToolTip("Set as active activity")
+        if activity.is_active:
+            activate_btn = QPushButton("■")
+            activate_btn.setFixedWidth(30)
+            activate_btn.setToolTip("Currently active")
+            activate_btn.setStyleSheet("color: #22aa22;")
+        else:
+            activate_btn = QPushButton("▶")
+            activate_btn.setFixedWidth(30)
+            activate_btn.setToolTip("Set as active activity")
         activate_btn.clicked.connect(
             lambda checked=False, a_id=activity.id: self._activity_service.set_active(a_id)
         )

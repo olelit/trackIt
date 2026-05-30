@@ -1,8 +1,8 @@
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Signal, Slot
-from PySide6.QtDBus import QDBusAbstractAdaptor, QDBusConnection, QDBusInterface, QDBusMessage
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage, QDBusVirtualObject
 
 from models.window_info import WindowInfo
 
@@ -14,7 +14,6 @@ KWIN_SCRIPTING_IFACE = "org.kde.kwin.Scripting"
 
 TRACKIT_SERVICE = "org.trackit.App"
 TRACKIT_PATH = "/org/trackit/App"
-TRACKIT_IFACE = "org.trackit.App"
 
 SCRIPT_INSTALL_DIR = Path.home() / ".local" / "share" / "kwin" / "scripts" / "trackit"
 
@@ -57,17 +56,38 @@ KWIN_METADATA_JSON = """\
 """
 
 
-class _WindowChangedAdaptor(QDBusAbstractAdaptor):
-    """QtDBus adaptor — receives windowChanged calls from KWin script."""
+class _DBusHandler(QDBusVirtualObject):
+    """Handles D-Bus method calls regardless of interface name."""
 
-    def __init__(self, parent: QObject) -> None:
-        super().__init__(parent)
+    def __init__(self, tracker: "WindowTrackerService") -> None:
+        super().__init__()
+        self._tracker = tracker
 
-    @Slot(str, str, int)
-    def windowChanged(self, app_name: str, window_title: str, pid: int) -> None:  # noqa: N802
-        p = self.parent()
-        if isinstance(p, WindowTrackerService):
-            p._on_dbus_window_changed(app_name, window_title, pid)
+    def handleMessage(self, message: QDBusMessage, connection: QDBusConnection) -> bool:  # noqa: N802
+        method = message.member()
+        args = message.arguments()
+        if method == "windowChanged" and len(args) >= 3:
+            app_name = str(args[0]) if args else ""
+            window_title = str(args[1]) if len(args) > 1 else ""
+            pid_val = args[2] if len(args) > 2 else 0
+            try:
+                pid = int(pid_val)
+            except (ValueError, TypeError):
+                pid = 0
+            self._tracker._on_dbus_window_changed(app_name, window_title, pid)
+            return True
+        return False
+
+    def introspect(self, path: str) -> str:  # noqa: N802, ARG002
+        return (
+            '<interface name="org.trackit.App">'
+            '<method name="windowChanged">'
+            '<arg name="app_name" type="s" direction="in"/>'
+            '<arg name="window_title" type="s" direction="in"/>'
+            '<arg name="pid" type="i" direction="in"/>'
+            '</method>'
+            '</interface>'
+        )
 
 
 class WindowTrackerService(QObject):
@@ -80,7 +100,7 @@ class WindowTrackerService(QObject):
         self._current_window: WindowInfo | None = None
         self._bus: QDBusConnection | None = None
         self._kwin_scripting: QDBusInterface | None = None
-        self._adaptor: _WindowChangedAdaptor | None = None
+        self._handler: _DBusHandler | None = None
 
     @property
     def is_running(self) -> bool:
@@ -102,11 +122,8 @@ class WindowTrackerService(QObject):
         if not ok:
             logger.warning("Could not register D-Bus service %s", TRACKIT_SERVICE)
 
-        registered = self._bus.registerObject(TRACKIT_PATH, self)
-        if registered:
-            self._adaptor = _WindowChangedAdaptor(self)
-        else:
-            logger.warning("Could not register D-Bus object at %s", TRACKIT_PATH)
+        self._handler = _DBusHandler(self)
+        registered = self._bus.registerVirtualObject(TRACKIT_PATH, self._handler)
 
         self._running = True
         logger.info(
@@ -118,16 +135,18 @@ class WindowTrackerService(QObject):
 
     def stop(self) -> None:
         self._running = False
-        if self._bus is not None:
+        if self._bus is not None and self._handler is not None:
             self._bus.unregisterObject(TRACKIT_PATH)
             self._bus.unregisterService(TRACKIT_SERVICE)
             self._bus = None
-        self._adaptor = None
+            self._handler = None
         if self._kwin_scripting is not None:
             self._unload_kwin_script()
         logger.info("WindowTrackerService stopped")
 
     def _on_dbus_window_changed(self, app_name: str, window_title: str, pid: int) -> None:
+        log_message = f"Window changed: {app_name} - {window_title}"
+        logger.info(log_message)
         window_info = WindowInfo(
             app_name=app_name or "unknown",
             window_title=window_title or "unknown",
