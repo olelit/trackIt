@@ -1,5 +1,6 @@
 """Application entry point. Bootstrap QApplication, wire services, show main window."""
 
+from core.app import main
 
-def main() -> None:
-    raise NotImplementedError("Not yet implemented")
+if __name__ == "__main__":
+    main()
