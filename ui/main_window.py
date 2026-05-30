@@ -16,7 +16,6 @@ from services.time_tracking import TimeTrackingService
 from services.window_tracker import WindowTrackerService
 from ui.activity_detail import ActivityDetailWidget
 from ui.activity_list import ActivityListWidget
-from ui.format import format_duration
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +42,6 @@ class DebugPanel(QWidget):
         self._window_label.setStyleSheet("color: #888; font-size: 11px;")
         layout.addWidget(self._window_label)
 
-        self._elapsed_label = QLabel("")
-        self._elapsed_label.setStyleSheet("color: #aaa; font-size: 11px; font-weight: bold;")
-        layout.addWidget(self._elapsed_label)
-
         layout.addStretch()
 
         self._activity_label = QLabel("Active: none")
@@ -67,12 +62,8 @@ class DebugPanel(QWidget):
             if len(label) > 70:
                 label = label[:67] + "..."
             self._window_label.setText(f"Window: {label}")
-            elapsed = self._time_tracking.current_segment_seconds
-            self._elapsed_label.setText(f"[{format_duration(elapsed)}]")
-            self._elapsed_label.setVisible(True)
         else:
             self._window_label.setText("Window: ---")
-            self._elapsed_label.setVisible(False)
 
         active = self._activity_service.get_active_activity()
         if active:
