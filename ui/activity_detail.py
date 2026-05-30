@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 from models.activity import Activity
 from services.activity_service import ActivityService
 from services.storage_service import StorageService
+from services.time_tracking import TimeTrackingService
 from ui.format import format_duration
 
 logger = logging.getLogger(__name__)
@@ -22,11 +23,13 @@ class ActivityDetailWidget(QWidget):
         self,
         activity_service: ActivityService,
         storage: StorageService,
+        time_tracking: TimeTrackingService | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._activity_service = activity_service
         self._storage = storage
+        self._time_tracking = time_tracking
         self._current_activity_id: int | None = None
 
         layout = QVBoxLayout(self)
@@ -59,7 +62,11 @@ class ActivityDetailWidget(QWidget):
 
     def _update_header(self, activity: Activity) -> None:
         self._name_label.setText(activity.name)
-        self._total_time_label.setText(format_duration(activity.total_duration_seconds))
+        live_total = activity.total_duration_seconds
+        active = self._activity_service.get_active_activity()
+        if active is not None and active.id == activity.id and self._time_tracking is not None:
+            live_total += self._time_tracking.current_segment_seconds
+        self._total_time_label.setText(format_duration(live_total))
 
     def _refresh_usage(self) -> None:
         self._usage_list.clear()

@@ -103,7 +103,7 @@ def main() -> None:
     _register_dbus_handler(window_tracker)
 
     from ui.main_window import MainWindow
-    window = MainWindow(activity_service, window_tracker, storage)
+    window = MainWindow(activity_service, window_tracker, storage, time_tracking)
     window.show()
 
     window_tracker.start()

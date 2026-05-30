@@ -32,6 +32,12 @@ class TimeTrackingService(QObject):
         activity_service.active_activity_changed.connect(self._on_activity_changed)
         logger.info("TimeTrackingService initialized")
 
+    @property
+    def current_segment_seconds(self) -> int:
+        if self._segment_start <= 0:
+            return 0
+        return max(0, int(time.time() - self._segment_start))
+
     def _on_window_changed(self, window_info: WindowInfo) -> None:
         now = time.time()
 
