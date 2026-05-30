@@ -1,8 +1,11 @@
-from models.window_info import WindowInfo
 from services.activity_service import ActivityService
 from services.storage_service import StorageService
 from services.time_tracking import TimeTrackingService
 from services.window_tracker import WindowTrackerService
+
+
+def _simulate_window(wt: WindowTrackerService, app_name: str, title: str) -> None:
+    wt._on_dbus_window_changed(app_name, title, 0)
 
 
 def test_full_tracking_flow() -> None:
@@ -15,8 +18,8 @@ def test_full_tracking_flow() -> None:
     study = activity_service.create_activity("Study")
 
     activity_service.set_active(work.id)
-    window_tracker._handle_window_change(WindowInfo(app_name="firefox", window_title="Docs"))
-    window_tracker._handle_window_change(WindowInfo(app_name="konsole", window_title="Build"))
+    _simulate_window(window_tracker, "firefox", "Docs")
+    _simulate_window(window_tracker, "konsole", "Build")
 
     activity_service.set_active(study.id)
     work_usage = storage.app_usage.get_by_activity(work.id)

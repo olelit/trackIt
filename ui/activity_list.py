@@ -76,6 +76,14 @@ class ActivityListWidget(QWidget):
         row_layout.addWidget(label)
         row_layout.addStretch()
 
+        activate_btn = QPushButton("▶")
+        activate_btn.setFixedWidth(30)
+        activate_btn.setToolTip("Set as active activity")
+        activate_btn.clicked.connect(
+            lambda checked=False, a_id=activity.id: self._activity_service.set_active(a_id)
+        )
+        row_layout.addWidget(activate_btn)
+
         kebab_btn = self._create_kebab_button(activity)
         row_layout.addWidget(kebab_btn)
 
@@ -90,10 +98,6 @@ class ActivityListWidget(QWidget):
 
     def _show_kebab_menu(self, activity: Activity, button: QPushButton) -> None:
         menu = QMenu(self)
-
-        set_active_action = QAction("Set Active", menu)
-        set_active_action.triggered.connect(lambda: self._activity_service.set_active(activity.id))
-        menu.addAction(set_active_action)
 
         rename_action = QAction("Rename", menu)
         rename_action.triggered.connect(lambda: self._rename_activity(activity))

@@ -1,15 +1,73 @@
 import logging
-from typing import Any
+from pathlib import Path
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtDBus import QDBusAbstractAdaptor, QDBusConnection, QDBusInterface, QDBusMessage
 
 from models.window_info import WindowInfo
 
 logger = logging.getLogger(__name__)
 
 KWIN_SERVICE = "org.kde.KWin"
-KWIN_PATH = "/KWin"
-KWIN_INTERFACE = "org.kde.KWin"
+KWIN_SCRIPTING_PATH = "/Scripting"
+KWIN_SCRIPTING_IFACE = "org.kde.kwin.Scripting"
+
+TRACKIT_SERVICE = "org.trackit.App"
+TRACKIT_PATH = "/org/trackit/App"
+TRACKIT_IFACE = "org.trackit.App"
+
+SCRIPT_INSTALL_DIR = Path.home() / ".local" / "share" / "kwin" / "scripts" / "trackit"
+
+KWIN_SCRIPT_JS = """\
+// TrackIt KWin script — reports active window info via D-Bus
+// Installed and loaded automatically by the TrackIt Python app.
+
+function notifyWindow(window) {
+    if (!window) return;
+    callDBus(
+        "org.trackit.App",
+        "/org/trackit/App",
+        "org.trackit.App",
+        "windowChanged",
+        window.resourceClass || "",
+        window.caption || "",
+        window.pid || 0
+    );
+}
+
+workspace.windowActivated.connect(notifyWindow);
+
+if (workspace.activeWindow) {
+    notifyWindow(workspace.activeWindow);
+}
+"""
+
+KWIN_METADATA_JSON = """\
+{
+    "KPlugin": {
+        "Name": "TrackIt Window Tracker",
+        "Description": "Reports active window info for TrackIt app",
+        "Icon": "preferences-system-time",
+        "EnabledByDefault": true,
+        "Version": "1.0"
+    },
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js"
+}
+"""
+
+
+class _WindowChangedAdaptor(QDBusAbstractAdaptor):
+    """QtDBus adaptor — receives windowChanged calls from KWin script."""
+
+    def __init__(self, parent: QObject) -> None:
+        super().__init__(parent)
+
+    @Slot(str, str, int)
+    def windowChanged(self, app_name: str, window_title: str, pid: int) -> None:  # noqa: N802
+        p = self.parent()
+        if isinstance(p, WindowTrackerService):
+            p._on_dbus_window_changed(app_name, window_title, pid)
 
 
 class WindowTrackerService(QObject):
@@ -20,8 +78,9 @@ class WindowTrackerService(QObject):
         super().__init__(parent)
         self._running: bool = False
         self._current_window: WindowInfo | None = None
-        self._dbus_available: bool = False
-        self._fallback_timer: QTimer | None = None
+        self._bus: QDBusConnection | None = None
+        self._kwin_scripting: QDBusInterface | None = None
+        self._adaptor: _WindowChangedAdaptor | None = None
 
     @property
     def is_running(self) -> bool:
@@ -35,103 +94,92 @@ class WindowTrackerService(QObject):
         if self._running:
             return True
 
-        try:
-            self._connect_dbus()
-            self._running = True
-            logger.info("WindowTrackerService started (D-Bus connected)")
-            return True
-        except Exception as e:
-            logger.warning("D-Bus connection failed: %s. Starting fallback polling.", e)
-            self.tracking_error.emit(f"D-Bus unavailable: {e}")
-            self._start_fallback_polling()
-            self._running = True
-            return True
+        self._install_kwin_script()
+        script_loaded = self._load_kwin_script()
+
+        self._bus = QDBusConnection.sessionBus()
+        ok = self._bus.registerService(TRACKIT_SERVICE)
+        if not ok:
+            logger.warning("Could not register D-Bus service %s", TRACKIT_SERVICE)
+
+        registered = self._bus.registerObject(TRACKIT_PATH, self)
+        if registered:
+            self._adaptor = _WindowChangedAdaptor(self)
+        else:
+            logger.warning("Could not register D-Bus object at %s", TRACKIT_PATH)
+
+        self._running = True
+        logger.info(
+            "WindowTrackerService started (KWin script=%s, D-Bus=%s)",
+            "loaded" if script_loaded else "failed",
+            "registered" if (ok and registered) else "warning",
+        )
+        return True
 
     def stop(self) -> None:
         self._running = False
-        if self._fallback_timer is not None:
-            self._fallback_timer.stop()
-            self._fallback_timer = None
+        if self._bus is not None:
+            self._bus.unregisterObject(TRACKIT_PATH)
+            self._bus.unregisterService(TRACKIT_SERVICE)
+            self._bus = None
+        self._adaptor = None
+        if self._kwin_scripting is not None:
+            self._unload_kwin_script()
         logger.info("WindowTrackerService stopped")
 
-    def _handle_window_change(self, window_info: WindowInfo) -> None:
+    def _on_dbus_window_changed(self, app_name: str, window_title: str, pid: int) -> None:
+        window_info = WindowInfo(
+            app_name=app_name or "unknown",
+            window_title=window_title or "unknown",
+            pid=pid if pid > 0 else None,
+        )
         if self._current_window is not None and (
             self._current_window.app_name == window_info.app_name
             and self._current_window.window_title == window_info.window_title
         ):
             return
-
         self._current_window = window_info
         self.window_changed.emit(window_info)
 
-    def _connect_dbus(self) -> None:
-        from dasbus.connection import SessionMessageBus  # type: ignore[import-untyped]
-
-        bus = SessionMessageBus()
-        proxy: Any = bus.get_proxy(KWIN_SERVICE, KWIN_PATH)
-
+    def _install_kwin_script(self) -> None:
+        """Write bundled KWin script files to user's KWin scripts directory."""
         try:
-            current_window_id = proxy.ActiveWindow
-            if current_window_id:
-                window_info = self._fetch_window_info(proxy, current_window_id)
-                if window_info:
-                    self._current_window = window_info
+            code_dir = SCRIPT_INSTALL_DIR / "contents" / "code"
+            code_dir.mkdir(parents=True, exist_ok=True)
 
-            proxy.PropertiesChanged.connect(self._on_kwin_properties_changed)
-            self._dbus_available = True
-        except AttributeError as e:
-            raise RuntimeError(
-                f"org.kde.KWin D-Bus interface not found at {KWIN_PATH}"
-            ) from e
+            (SCRIPT_INSTALL_DIR / "metadata.json").write_text(KWIN_METADATA_JSON)
+            (code_dir / "main.js").write_text(KWIN_SCRIPT_JS)
+            logger.info("KWin script installed to %s", SCRIPT_INSTALL_DIR)
+        except OSError as e:
+            logger.warning("Failed to install KWin script: %s", e)
 
-    def _on_kwin_properties_changed(
-        self, interface_name: str, changed_props: dict[str, object], invalidated: list[str]
-    ) -> None:
-        if interface_name != KWIN_INTERFACE:
-            return
-        if "ActiveWindow" not in changed_props or "ActiveWindow" in invalidated:
-            return
-
-        window_id = changed_props["ActiveWindow"]
-        if not window_id:
-            return
-
-        from dasbus.connection import SessionMessageBus
-        bus = SessionMessageBus()
-        proxy: Any = bus.get_proxy(KWIN_SERVICE, KWIN_PATH)
-        window_info = self._fetch_window_info(proxy, str(window_id))
-        if window_info:
-            self._handle_window_change(window_info)
-
-    def _fetch_window_info(self, kwin_proxy: Any, window_id: str) -> WindowInfo | None:
+    def _load_kwin_script(self) -> bool:
         try:
-            app_name = kwin_proxy.getWindowInfo(window_id, "resourceClass")
-            window_title = kwin_proxy.getWindowInfo(window_id, "caption")
-            pid = kwin_proxy.getWindowInfo(window_id, "pid")
-            return WindowInfo(
-                app_name=app_name or "unknown",
-                window_title=window_title or "unknown",
-                pid=pid if pid else None,
-            )
+            conn = QDBusConnection.sessionBus()
+            iface = QDBusInterface(KWIN_SERVICE, KWIN_SCRIPTING_PATH, KWIN_SCRIPTING_IFACE, conn)
+            if not iface.isValid():
+                logger.warning("KWin Scripting D-Bus interface not available")
+                return False
+
+            script_path = str(SCRIPT_INSTALL_DIR / "contents" / "code" / "main.js")
+            msg: QDBusMessage = iface.call("loadScript", script_path)
+            if msg.type() == QDBusMessage.MessageType.ErrorMessage:
+                logger.warning("Failed to load KWin script: %s", msg.errorMessage())
+                return False
+
+            script_id = msg.arguments()[0] if msg.arguments() else -1
+            logger.info("KWin script loaded (id=%d)", script_id)
+            self._kwin_scripting = iface
+            return True
         except Exception as e:
-            logger.debug("Failed to fetch window info for %s: %s", window_id, e)
-            return None
+            logger.warning("Failed to load KWin script: %s", e)
+            return False
 
-    def _start_fallback_polling(self) -> None:
-        self._fallback_timer = QTimer(self)
-        self._fallback_timer.timeout.connect(self._poll_active_window)
-        self._fallback_timer.start(1000)
-        logger.warning("Fallback polling started (1s interval)")
-
-    def _poll_active_window(self) -> None:
+    def _unload_kwin_script(self) -> None:
         try:
-            from dasbus.connection import SessionMessageBus
-            bus = SessionMessageBus()
-            proxy: Any = bus.get_proxy(KWIN_SERVICE, KWIN_PATH)
-            window_id = proxy.ActiveWindow
-            if window_id:
-                window_info = self._fetch_window_info(proxy, window_id)
-                if window_info:
-                    self._handle_window_change(window_info)
+            conn = QDBusConnection.sessionBus()
+            iface = QDBusInterface(KWIN_SERVICE, KWIN_SCRIPTING_PATH, KWIN_SCRIPTING_IFACE, conn)
+            iface.call("unloadScript", "trackit")
+            logger.info("KWin script unloaded")
         except Exception as e:
-            logger.debug("Poll failed: %s", e)
+            logger.debug("Failed to unload KWin script: %s", e)

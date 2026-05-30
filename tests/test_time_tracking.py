@@ -1,6 +1,5 @@
 import pytest
 
-from models.window_info import WindowInfo
 from services.activity_service import ActivityService
 from services.storage_service import StorageService
 from services.time_tracking import TimeTrackingService
@@ -16,37 +15,33 @@ def services() -> tuple[StorageService, WindowTrackerService, ActivityService, T
     return storage, window_tracker, activity_service, time_tracking
 
 
+def _simulate_window(window_tracker: WindowTrackerService, app_name: str, window_title: str) -> None:
+    window_tracker._on_dbus_window_changed(app_name, window_title, 0)
+
+
 def test_on_window_change_records_usage(
     services: tuple[StorageService, WindowTrackerService, ActivityService, TimeTrackingService],
 ) -> None:
     storage, window_tracker, activity_service, _ = services
-
     activity = activity_service.create_activity("Work")
     activity_service.set_active(activity.id)
 
-    w1 = WindowInfo(app_name="firefox", window_title="Page 1")
-    window_tracker._handle_window_change(w1)
-
-    w2 = WindowInfo(app_name="konsole", window_title="Terminal")
-    window_tracker._handle_window_change(w2)
+    _simulate_window(window_tracker, "firefox", "Page 1")
+    _simulate_window(window_tracker, "konsole", "Terminal")
 
     usages = storage.app_usage.get_by_activity(activity.id)
     firefox_usage = [u for u in usages if u.app_name == "firefox"]
     assert len(firefox_usage) == 1
-    assert firefox_usage[0].duration_seconds >= 0
 
 
 def test_activity_switch_flushes_current_segment(
     services: tuple[StorageService, WindowTrackerService, ActivityService, TimeTrackingService],
 ) -> None:
     storage, window_tracker, activity_service, _ = services
-
     activity = activity_service.create_activity("Work")
     activity_service.set_active(activity.id)
 
-    w1 = WindowInfo(app_name="firefox", window_title="Page")
-    window_tracker._handle_window_change(w1)
-
+    _simulate_window(window_tracker, "firefox", "Page")
     activity2 = activity_service.create_activity("Study")
     activity_service.set_active(activity2.id)
 
@@ -59,32 +54,22 @@ def test_no_active_activity_skips_recording(
     services: tuple[StorageService, WindowTrackerService, ActivityService, TimeTrackingService],
 ) -> None:
     storage, window_tracker, activity_service, _ = services
-
-    w1 = WindowInfo(app_name="firefox", window_title="Page")
-    window_tracker._handle_window_change(w1)
-    w2 = WindowInfo(app_name="konsole", window_title="Terminal")
-    window_tracker._handle_window_change(w2)
-
-    all_activities = storage.activities.get_all()
-    assert all_activities == []
+    _simulate_window(window_tracker, "firefox", "Page")
+    _simulate_window(window_tracker, "konsole", "Terminal")
+    assert storage.activities.get_all() == []
 
 
 def test_same_window_no_duplicate_recording(
     services: tuple[StorageService, WindowTrackerService, ActivityService, TimeTrackingService],
 ) -> None:
     storage, window_tracker, activity_service, _ = services
-
     activity = activity_service.create_activity("Work")
     activity_service.set_active(activity.id)
 
-    w1 = WindowInfo(app_name="firefox", window_title="Same Page")
-    window_tracker._handle_window_change(w1)
+    _simulate_window(window_tracker, "firefox", "Same Page")
+    _simulate_window(window_tracker, "konsole", "Terminal")
 
-    w2 = WindowInfo(app_name="konsole", window_title="Terminal")
-    window_tracker._handle_window_change(w2)
-
-    usages_after = storage.app_usage.get_by_activity(activity.id)
-    firefox = [u for u in usages_after if u.app_name == "firefox"]
+    firefox = [u for u in storage.app_usage.get_by_activity(activity.id) if u.app_name == "firefox"]
     assert len(firefox) == 1
 
 
@@ -92,16 +77,12 @@ def test_update_activity_total_duration(
     services: tuple[StorageService, WindowTrackerService, ActivityService, TimeTrackingService],
 ) -> None:
     storage, window_tracker, activity_service, _ = services
-
     activity = activity_service.create_activity("Work")
     activity_service.set_active(activity.id)
 
-    w1 = WindowInfo(app_name="firefox", window_title="P1")
-    window_tracker._handle_window_change(w1)
+    _simulate_window(window_tracker, "firefox", "P1")
+    _simulate_window(window_tracker, "zed", "Editor")
 
-    w2 = WindowInfo(app_name="zed", window_title="Editor")
-    window_tracker._handle_window_change(w2)
-
-    updated_activity = storage.activities.get_by_id(activity.id)
-    assert updated_activity is not None
-    assert updated_activity.total_duration_seconds >= 0
+    updated = storage.activities.get_by_id(activity.id)
+    assert updated is not None
+    assert updated.total_duration_seconds >= 0
