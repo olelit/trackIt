@@ -1,12 +1,44 @@
 import logging
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 
 from models.window_info import WindowInfo
 
 logger = logging.getLogger(__name__)
 
+KWIN_SERVICE = "org.kde.KWin"
+KWIN_SCRIPTING_PATH = "/Scripting"
+KWIN_SCRIPTING_IFACE = "org.kde.kwin.Scripting"
+
 POLL_INTERVAL_MS = 1000
+
+SCRIPT_INSTALL_DIR = Path.home() / ".local" / "share" / "kwin" / "scripts" / "trackit"
+
+KWIN_SCRIPT_JS = """\
+function notify() {
+    var w = workspace.activeWindow;
+    if (!w) return;
+    var info = JSON.stringify({
+        app: w.resourceClass || w.resourceName || "",
+        title: w.caption || ""
+    });
+    callDBus("org.trackit.App", "/org/trackit/App", "org.trackit.App", "windowChangedJson", info);
+}
+workspace.windowActivated.connect(notify);
+"""
+
+KWIN_METADATA_JSON = """\
+{
+    "KPlugin": {
+        "Name": "trackit",
+        "EnabledByDefault": true
+    },
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js"
+}
+"""
 
 
 class WindowTrackerService(QObject):
@@ -18,6 +50,7 @@ class WindowTrackerService(QObject):
         self._running: bool = False
         self._current_window: WindowInfo | None = None
         self._timer: QTimer | None = None
+        self._kwin_scripting: QDBusInterface | None = None
 
     @property
     def is_running(self) -> bool:
@@ -31,6 +64,9 @@ class WindowTrackerService(QObject):
         if self._running:
             return True
 
+        self._install_kwin_script()
+        self._load_kwin_script()
+
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._poll)
         self._timer.start(POLL_INTERVAL_MS)
@@ -43,17 +79,17 @@ class WindowTrackerService(QObject):
         if self._timer is not None:
             self._timer.stop()
             self._timer = None
+        if self._kwin_scripting is not None:
+            self._unload_kwin_script()
         logger.info("WindowTrackerService stopped")
 
     def _poll(self) -> None:
-        from PySide6.QtDBus import QDBusConnection, QDBusInterface
-
         try:
             conn = QDBusConnection.sessionBus()
-            iface = QDBusInterface("org.kde.KWin", "/KWin", "org.kde.KWin", conn)
+            iface = QDBusInterface(KWIN_SERVICE, "/KWin", KWIN_SERVICE, conn)
             if not iface.isValid():
                 return
-            msg = iface.call("getWindowInfo", "")
+            msg: QDBusMessage = iface.call("getWindowInfo", "")
             if msg.type() != msg.MessageType.ReplyMessage:
                 return
             args = msg.arguments()
@@ -84,3 +120,46 @@ class WindowTrackerService(QObject):
             return
         self._current_window = window_info
         self.window_changed.emit(window_info)
+
+    def _install_kwin_script(self) -> None:
+        try:
+            code_dir = SCRIPT_INSTALL_DIR / "contents" / "code"
+            code_dir.mkdir(parents=True, exist_ok=True)
+            (SCRIPT_INSTALL_DIR / "metadata.json").write_text(KWIN_METADATA_JSON)
+            (code_dir / "main.js").write_text(KWIN_SCRIPT_JS)
+            logger.info("KWin script installed to %s", SCRIPT_INSTALL_DIR)
+        except OSError as e:
+            logger.warning("Failed to install KWin script: %s", e)
+
+    def _load_kwin_script(self) -> bool:
+        try:
+            conn = QDBusConnection.sessionBus()
+            iface = QDBusInterface(KWIN_SERVICE, KWIN_SCRIPTING_PATH, KWIN_SCRIPTING_IFACE, conn)
+            if not iface.isValid():
+                logger.warning("KWin Scripting D-Bus interface not available")
+                return False
+            script_path = str(SCRIPT_INSTALL_DIR / "contents" / "code" / "main.js")
+            msg: QDBusMessage = iface.call("loadScript", script_path)
+            if msg.type() == QDBusMessage.MessageType.ErrorMessage:
+                logger.warning("Failed to load KWin script: %s", msg.errorMessage())
+                return False
+            script_id = msg.arguments()[0] if msg.arguments() else -1
+            logger.info("KWin script loaded (id=%d)", script_id)
+
+            # Explicitly start scripts
+            iface.call("start")
+
+            self._kwin_scripting = iface
+            return True
+        except Exception as e:
+            logger.warning("Failed to load KWin script: %s", e)
+            return False
+
+    def _unload_kwin_script(self) -> None:
+        try:
+            conn = QDBusConnection.sessionBus()
+            iface = QDBusInterface(KWIN_SERVICE, KWIN_SCRIPTING_PATH, KWIN_SCRIPTING_IFACE, conn)
+            iface.call("unloadScript", "trackit")
+            logger.info("KWin script unloaded")
+        except Exception as e:
+            logger.debug("Failed to unload KWin script: %s", e)
