@@ -1,9 +1,11 @@
 import sqlite3
+
 import pytest
+
 from models.activity import Activity
 from models.app_usage import AppUsage
-from storage.schema import initialize_schema
 from storage.repository import ActivityRepository, AppUsageRepository
+from storage.schema import initialize_schema
 
 
 @pytest.fixture

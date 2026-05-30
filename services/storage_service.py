@@ -1,7 +1,8 @@
-import sqlite3
 import logging
-from storage.schema import initialize_schema
+import sqlite3
+
 from storage.repository import ActivityRepository, AppUsageRepository
+from storage.schema import initialize_schema
 
 logger = logging.getLogger(__name__)
 

@@ -1,11 +1,13 @@
-import sys
 import logging
+import sys
 from pathlib import Path
+
 from PySide6.QtWidgets import QApplication
-from services.storage_service import StorageService
-from services.window_tracker import WindowTrackerService
+
 from services.activity_service import ActivityService
+from services.storage_service import StorageService
 from services.time_tracking import TimeTrackingService
+from services.window_tracker import WindowTrackerService
 
 logger = logging.getLogger(__name__)
 

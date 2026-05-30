@@ -1,12 +1,13 @@
 import logging
-from typing import Optional
-from PySide6.QtWidgets import QMainWindow, QSplitter, QWidget, QVBoxLayout
+
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QMainWindow, QSplitter, QWidget
+
 from services.activity_service import ActivityService
-from services.window_tracker import WindowTrackerService
 from services.storage_service import StorageService
-from ui.activity_list import ActivityListWidget
+from services.window_tracker import WindowTrackerService
 from ui.activity_detail import ActivityDetailWidget
+from ui.activity_list import ActivityListWidget
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class MainWindow(QMainWindow):
         activity_service: ActivityService,
         window_tracker: WindowTrackerService,
         storage: StorageService,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("TrackIt")

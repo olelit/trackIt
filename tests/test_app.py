@@ -1,5 +1,5 @@
-from services.storage_service import StorageService
 from core.app import create_services
+from services.storage_service import StorageService
 
 
 def test_create_services_returns_all_three() -> None:

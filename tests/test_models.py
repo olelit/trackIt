@@ -1,6 +1,6 @@
 from models.activity import Activity
-from models.window_info import WindowInfo
 from models.app_usage import AppUsage
+from models.window_info import WindowInfo
 
 
 def test_activity_defaults() -> None:

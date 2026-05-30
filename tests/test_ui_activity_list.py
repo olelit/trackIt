@@ -1,6 +1,7 @@
 import pytest
-from services.storage_service import StorageService
+
 from services.activity_service import ActivityService
+from services.storage_service import StorageService
 from ui.activity_list import ActivityListWidget
 
 

@@ -1,4 +1,5 @@
 import sqlite3
+
 from storage.schema import SCHEMA_VERSION, initialize_schema
 
 

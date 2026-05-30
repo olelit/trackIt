@@ -1,11 +1,19 @@
 import logging
-from typing import Optional
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QListWidget, QListWidgetItem, QPushButton, QHBoxLayout,
-    QLabel, QMenu, QInputDialog,
-)
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMenu,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
 from models.activity import Activity
 from services.activity_service import ActivityService
 
@@ -15,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ActivityListWidget(QWidget):
     activity_selected = Signal(int)
 
-    def __init__(self, activity_service: ActivityService, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, activity_service: ActivityService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._activity_service = activity_service
 

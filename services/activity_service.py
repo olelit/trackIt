@@ -1,6 +1,7 @@
 import logging
-from typing import Optional
+
 from PySide6.QtCore import QObject, Signal
+
 from models.activity import Activity
 from services.storage_service import StorageService
 
@@ -13,11 +14,11 @@ class ActivityService(QObject):
     activity_deleted = Signal(int)
     active_activity_changed = Signal(object)  # Activity or None
 
-    def __init__(self, storage: StorageService, parent: Optional[QObject] = None) -> None:
+    def __init__(self, storage: StorageService, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._storage = storage
 
-    def create_activity(self, name: str, icon_path: Optional[str] = None) -> Activity:
+    def create_activity(self, name: str, icon_path: str | None = None) -> Activity:
         activity = Activity(name=name, icon_path=icon_path)
         activity = self._storage.activities.create(activity)
         logger.info("Created activity: id=%d name=%s", activity.id, activity.name)
@@ -35,7 +36,7 @@ class ActivityService(QObject):
         logger.info("Activated activity: id=%d name=%s", activity.id, activity.name)
         self.active_activity_changed.emit(activity)
 
-    def get_active_activity(self) -> Optional[Activity]:
+    def get_active_activity(self) -> Activity | None:
         return self._storage.activities.get_active()
 
     def get_all_activities(self) -> list[Activity]:

@@ -1,7 +1,7 @@
+import logging
 import sqlite3
 import time
-import logging
-from typing import Optional
+
 from models.activity import Activity
 from models.app_usage import AppUsage
 
@@ -25,9 +25,12 @@ class ActivityRepository:
         rows = self._conn.execute(
             "SELECT id, name, icon_path, is_active, total_duration_seconds FROM activity ORDER BY id"
         ).fetchall()
-        return [Activity(id=r[0], name=r[1], icon_path=r[2], is_active=bool(r[3]), total_duration_seconds=r[4]) for r in rows]
+        return [
+            Activity(id=r[0], name=r[1], icon_path=r[2], is_active=bool(r[3]), total_duration_seconds=r[4])
+            for r in rows
+        ]
 
-    def get_by_id(self, activity_id: int) -> Optional[Activity]:
+    def get_by_id(self, activity_id: int) -> Activity | None:
         row = self._conn.execute(
             "SELECT id, name, icon_path, is_active, total_duration_seconds FROM activity WHERE id = ?",
             (activity_id,),
@@ -36,7 +39,7 @@ class ActivityRepository:
             return None
         return Activity(id=row[0], name=row[1], icon_path=row[2], is_active=bool(row[3]), total_duration_seconds=row[4])
 
-    def get_active(self) -> Optional[Activity]:
+    def get_active(self) -> Activity | None:
         row = self._conn.execute(
             "SELECT id, name, icon_path, is_active, total_duration_seconds FROM activity WHERE is_active = 1 LIMIT 1"
         ).fetchone()
@@ -82,7 +85,9 @@ class AppUsageRepository:
             return usage
         else:
             cursor = self._conn.execute(
-                "INSERT INTO app_usage (activity_id, app_name, window_title, duration_seconds, last_seen_ts) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO app_usage"
+                " (activity_id, app_name, window_title, duration_seconds, last_seen_ts)"
+                " VALUES (?, ?, ?, ?, ?)",
                 (usage.activity_id, usage.app_name, usage.window_title, usage.duration_seconds, now),
             )
             self._conn.commit()
@@ -92,10 +97,17 @@ class AppUsageRepository:
 
     def get_by_activity(self, activity_id: int) -> list[AppUsage]:
         rows = self._conn.execute(
-            "SELECT id, activity_id, app_name, window_title, duration_seconds, last_seen_ts FROM app_usage WHERE activity_id=? ORDER BY duration_seconds DESC",
+            "SELECT id, activity_id, app_name, window_title, duration_seconds, last_seen_ts"
+            " FROM app_usage WHERE activity_id=? ORDER BY duration_seconds DESC",
             (activity_id,),
         ).fetchall()
-        return [AppUsage(id=r[0], activity_id=r[1], app_name=r[2], window_title=r[3], duration_seconds=r[4], last_seen_ts=r[5]) for r in rows]
+        return [
+            AppUsage(
+                id=r[0], activity_id=r[1], app_name=r[2], window_title=r[3],
+                duration_seconds=r[4], last_seen_ts=r[5],
+            )
+            for r in rows
+        ]
 
     def add_duration(self, activity_id: int, app_name: str, duration_seconds: int) -> None:
         row = self._conn.execute(

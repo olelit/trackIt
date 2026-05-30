@@ -1,8 +1,13 @@
 import logging
-from typing import Optional
+
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QListWidget, QListWidgetItem,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
+
 from models.activity import Activity
 from services.activity_service import ActivityService
 from services.storage_service import StorageService
@@ -15,12 +20,12 @@ class ActivityDetailWidget(QWidget):
         self,
         activity_service: ActivityService,
         storage: StorageService,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._activity_service = activity_service
         self._storage = storage
-        self._current_activity_id: Optional[int] = None
+        self._current_activity_id: int | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
