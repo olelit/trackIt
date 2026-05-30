@@ -106,6 +106,10 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self._activity_list.activity_selected.connect(self._activity_detail.show_activity)
+        self._window_tracker.window_changed.connect(self._on_window_changed)
         self._debug_panel.info_updated.connect(lambda: None)
 
         logger.info("MainWindow created")
+
+    def _on_window_changed(self, _window_info: object) -> None:
+        self._activity_detail._periodic_refresh()

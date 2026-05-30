@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from models.activity import Activity
 from services.activity_service import ActivityService
+from ui.format import format_duration
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +61,7 @@ class ActivityListWidget(QWidget):
 
     def _add_activity_item(self, activity: Activity) -> None:
         active_marker = " ●" if activity.is_active else ""
-        hours = activity.total_duration_seconds // 3600
-        minutes = (activity.total_duration_seconds % 3600) // 60
-        time_str = f"{hours}h {minutes:02d}m" if hours > 0 else f"{minutes}m"
+        time_str = format_duration(activity.total_duration_seconds)
 
         item = QListWidgetItem()
         item.setData(Qt.ItemDataRole.UserRole, activity.id)

@@ -1,5 +1,6 @@
 import logging
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
@@ -11,6 +12,7 @@ from PySide6.QtWidgets import (
 from models.activity import Activity
 from services.activity_service import ActivityService
 from services.storage_service import StorageService
+from ui.format import format_duration
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,10 @@ class ActivityDetailWidget(QWidget):
         self._activity_service.activity_updated.connect(self._on_activity_updated)
         self._activity_service.activity_deleted.connect(self._on_activity_deleted)
 
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.timeout.connect(self._periodic_refresh)
+        self._refresh_timer.start(30_000)
+
     def show_activity(self, activity_id: int) -> None:
         activity = self._activity_service._storage.activities.get_by_id(activity_id)
         if activity is None:
@@ -53,9 +59,7 @@ class ActivityDetailWidget(QWidget):
 
     def _update_header(self, activity: Activity) -> None:
         self._name_label.setText(activity.name)
-        hours = activity.total_duration_seconds // 3600
-        minutes = (activity.total_duration_seconds % 3600) // 60
-        self._total_time_label.setText(f"{hours}h {minutes:02d}m")
+        self._total_time_label.setText(format_duration(activity.total_duration_seconds))
 
     def _refresh_usage(self) -> None:
         self._usage_list.clear()
@@ -63,11 +67,15 @@ class ActivityDetailWidget(QWidget):
             return
         usages = self._storage.app_usage.get_by_activity(self._current_activity_id)
         for usage in usages:
-            hours = usage.duration_seconds // 3600
-            minutes = (usage.duration_seconds % 3600) // 60
-            duration_str = f"{hours}h {minutes:02d}m" if hours > 0 else f"{minutes}m"
-            label = f"{usage.app_name}  —  {duration_str}"
+            label = f"{usage.app_name}  —  {format_duration(usage.duration_seconds)}"
             self._usage_list.addItem(QListWidgetItem(label))
+
+    def _periodic_refresh(self) -> None:
+        if self._current_activity_id is not None:
+            activity = self._storage.activities.get_by_id(self._current_activity_id)
+            if activity is not None:
+                self._update_header(activity)
+                self._refresh_usage()
 
     def _on_activity_updated(self, activity: Activity) -> None:
         if activity.id == self._current_activity_id:
