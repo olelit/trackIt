@@ -13,5 +13,5 @@ def test_create_services_returns_all_three() -> None:
 def test_create_services_wires_signals() -> None:
     storage = StorageService(":memory:")
     window_tracker, activity_service, _ = create_services(storage)
-    window_tracker._on_dbus_window_changed("test", "test", 0)
+    window_tracker._on_window_info("test", "test", 0)
     activity_service.create_activity("Test")

@@ -5,7 +5,7 @@ from services.window_tracker import WindowTrackerService
 
 
 def _simulate_window(wt: WindowTrackerService, app_name: str, title: str) -> None:
-    wt._on_dbus_window_changed(app_name, title, 0)
+    wt._on_window_info(app_name, title, 0)
 
 
 def test_full_tracking_flow() -> None:

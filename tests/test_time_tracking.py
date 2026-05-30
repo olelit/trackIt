@@ -16,7 +16,7 @@ def services() -> tuple[StorageService, WindowTrackerService, ActivityService, T
 
 
 def _simulate_window(window_tracker: WindowTrackerService, app_name: str, window_title: str) -> None:
-    window_tracker._on_dbus_window_changed(app_name, window_title, 0)
+    window_tracker._on_window_info(app_name, window_title, 0)
 
 
 def test_on_window_change_records_usage(

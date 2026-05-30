@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def setup_logging() -> None:
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format="%(asctime)s [%(levelname).4s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
