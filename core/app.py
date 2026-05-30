@@ -1,7 +1,9 @@
+import json
 import logging
 import sys
 from pathlib import Path
 
+from PySide6.QtDBus import QDBusConnection, QDBusMessage, QDBusVirtualObject
 from PySide6.QtWidgets import QApplication
 
 from services.activity_service import ActivityService
@@ -10,6 +12,55 @@ from services.time_tracking import TimeTrackingService
 from services.window_tracker import WindowTrackerService
 
 logger = logging.getLogger(__name__)
+
+
+class _DebugDBusHandler(QDBusVirtualObject):
+    """Accepts manual window changes via dbus-send for testing."""
+
+    def __init__(self, tracker: WindowTrackerService) -> None:
+        super().__init__()
+        self._tracker = tracker
+
+    def handleMessage(self, message: QDBusMessage, connection: QDBusConnection) -> bool:  # noqa: N802
+        try:
+            method = message.member()
+            args = message.arguments()
+            if method == "windowChangedJson" and args:
+                data = json.loads(str(args[0]))
+                app_name = data.get("app", "")
+                window_title = data.get("title", "")
+                if app_name:
+                    self._tracker._on_window_info(app_name, window_title, 0)
+                reply = message.createReply()
+                connection.send(reply)
+                return True
+        except Exception:
+            pass
+        return False
+
+    def introspect(self, path: str) -> str:  # noqa: N802, ARG002
+        return (
+            '<interface name="org.trackit.App">'
+            '<method name="windowChangedJson">'
+            '<arg name="json" type="s" direction="in"/>'
+            '</method>'
+            '</interface>'
+        )
+
+
+_dbus_handler: QDBusVirtualObject | None = None
+
+
+def _register_dbus_handler(tracker: WindowTrackerService) -> None:
+    global _dbus_handler
+    bus = QDBusConnection.sessionBus()
+    ok = bus.registerService("org.trackit.App")
+    if ok:
+        _dbus_handler = _DebugDBusHandler(tracker)
+        bus.registerVirtualObject("/org/trackit/App", _dbus_handler)
+        logger.info("D-Bus handler registered — use dbus-send for manual window injection")
+    else:
+        logger.warning("Could not register D-Bus service (may already be running)")
 
 
 def setup_logging() -> None:
@@ -48,6 +99,8 @@ def main() -> None:
 
     storage = StorageService(db_path)
     window_tracker, activity_service, time_tracking = create_services(storage)
+
+    _register_dbus_handler(window_tracker)
 
     from ui.main_window import MainWindow
     window = MainWindow(activity_service, window_tracker, storage)

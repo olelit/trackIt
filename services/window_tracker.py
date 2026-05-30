@@ -1,13 +1,11 @@
 import logging
 
 from PySide6.QtCore import QObject, QTimer, Signal
-from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
 
 from models.window_info import WindowInfo
 
 logger = logging.getLogger(__name__)
 
-KWIN_SERVICE = "org.kde.KWin"
 POLL_INTERVAL_MS = 1000
 
 
@@ -34,7 +32,7 @@ class WindowTrackerService(QObject):
             return True
 
         self._timer = QTimer(self)
-        self._timer.timeout.connect(self._poll_active_window)
+        self._timer.timeout.connect(self._poll)
         self._timer.start(POLL_INTERVAL_MS)
         self._running = True
         logger.info("WindowTrackerService started (polling %dms)", POLL_INTERVAL_MS)
@@ -47,14 +45,16 @@ class WindowTrackerService(QObject):
             self._timer = None
         logger.info("WindowTrackerService stopped")
 
-    def _poll_active_window(self) -> None:
+    def _poll(self) -> None:
+        from PySide6.QtDBus import QDBusConnection, QDBusInterface
+
         try:
             conn = QDBusConnection.sessionBus()
-            iface = QDBusInterface(KWIN_SERVICE, "/KWin", KWIN_SERVICE, conn)
+            iface = QDBusInterface("org.kde.KWin", "/KWin", "org.kde.KWin", conn)
             if not iface.isValid():
                 return
-            msg: QDBusMessage = iface.call("getWindowInfo", "")
-            if msg.type() == QDBusMessage.MessageType.ErrorMessage:
+            msg = iface.call("getWindowInfo", "")
+            if msg.type() != msg.MessageType.ReplyMessage:
                 return
             args = msg.arguments()
             if not args or not isinstance(args[0], dict):
@@ -64,17 +64,14 @@ class WindowTrackerService(QObject):
                 return
             app_name = str(props.get("resourceClass", ""))
             window_title = str(props.get("caption", ""))
-            pid_val = props.get("pid", 0)
-            try:
-                pid = int(str(pid_val)) if pid_val else 0
-            except (ValueError, TypeError):
-                pid = 0
             if app_name or window_title:
-                self._on_window_info(app_name, window_title, pid)
+                self._on_window_info(app_name, window_title, 0)
         except Exception:
             pass
 
     def _on_window_info(self, app_name: str, window_title: str, pid: int) -> None:
+        if not app_name and not window_title:
+            return
         window_info = WindowInfo(
             app_name=app_name or "unknown",
             window_title=window_title or "unknown",

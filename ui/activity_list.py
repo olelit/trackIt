@@ -77,17 +77,21 @@ class ActivityListWidget(QWidget):
         row_layout.addStretch()
 
         if activity.is_active:
-            activate_btn = QPushButton("■")
+            activate_btn = QPushButton("\u23f8")
             activate_btn.setFixedWidth(30)
-            activate_btn.setToolTip("Currently active")
-            activate_btn.setStyleSheet("color: #22aa22;")
+            activate_btn.setToolTip("Deactivate tracking")
+            activate_btn.setStyleSheet("color: #cc8800; font-size: 14px;")
+            activate_btn.clicked.connect(
+                lambda checked=False: self._activity_service.deactivate()
+            )
         else:
-            activate_btn = QPushButton("▶")
+            activate_btn = QPushButton("\u25b6")
             activate_btn.setFixedWidth(30)
             activate_btn.setToolTip("Set as active activity")
-        activate_btn.clicked.connect(
-            lambda checked=False, a_id=activity.id: self._activity_service.set_active(a_id)
-        )
+            activate_btn.setStyleSheet("")
+            activate_btn.clicked.connect(
+                lambda checked=False, a_id=activity.id: self._activity_service.set_active(a_id)
+            )
         row_layout.addWidget(activate_btn)
 
         kebab_btn = self._create_kebab_button(activity)

@@ -36,6 +36,11 @@ class ActivityService(QObject):
         logger.info("Activated activity: id=%d name=%s", activity.id, activity.name)
         self.active_activity_changed.emit(activity)
 
+    def deactivate(self) -> None:
+        self._storage.activities.set_all_inactive()
+        logger.info("All activities deactivated")
+        self.active_activity_changed.emit(None)
+
     def get_active_activity(self) -> Activity | None:
         return self._storage.activities.get_active()
 
