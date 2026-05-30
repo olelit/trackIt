@@ -7,32 +7,19 @@ Desktop time tracker for KDE Plasma 6 on Wayland. Tracks active windows via KWin
 - Linux with KDE Plasma 6 (Wayland session)
 - Python 3.13+
 - D-Bus session bus (for KWin integration)
+- `python-gobject` (system package, for D-Bus — optional, app falls back to polling)
 
 ## Quick Start
 
 ```bash
-# Create virtual environment and install
 python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-
-# Run the app
-python __main__.py
-```
-
-Or with the venv directly:
-
-```bash
 .venv/bin/pip install -e .
-.venv/bin/python __main__.py
+.venv/bin/trackit
 ```
 
 ## Development
 
 ```bash
-# Install dev dependencies
-.venv/bin/pip install -e ".[dev]"
-
 # Run tests
 .venv/bin/python -m pytest tests/ -v
 
