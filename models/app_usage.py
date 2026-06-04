@@ -9,3 +9,4 @@ class AppUsage:
     window_title: str | None = None
     duration_seconds: int = 0
     last_seen_ts: float = 0.0
+    task_id: str | None = None
