@@ -100,6 +100,8 @@ def main() -> None:
     storage = StorageService(db_path)
     window_tracker, activity_service, time_tracking = create_services(storage)
 
+    storage.reset_active()
+
     _register_dbus_handler(window_tracker)
 
     from ui.main_window import MainWindow
