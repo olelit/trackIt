@@ -15,3 +15,8 @@ class StorageService:
         self.activities = ActivityRepository(self.conn)
         self.app_usage = AppUsageRepository(self.conn)
         logger.info("StorageService initialized (db=%s)", db_path)
+
+    def reset_active(self) -> None:
+        """Force all activities to inactive. Intended for application startup."""
+        self.activities.set_all_inactive()
+        logger.info("All activities reset to inactive on startup")
