@@ -100,8 +100,17 @@ class WindowTrackerService(QObject):
                 return
             app_name = str(props.get("resourceClass", ""))
             window_title = str(props.get("caption", ""))
+            raw_pid = props.get("pid", 0)
+            pid = 0
+            if isinstance(raw_pid, int) and not isinstance(raw_pid, bool):
+                pid = raw_pid
+            elif isinstance(raw_pid, str) and raw_pid:
+                try:
+                    pid = int(raw_pid)
+                except ValueError:
+                    pid = 0
             if app_name or window_title:
-                self._on_window_info(app_name, window_title, 0)
+                self._on_window_info(app_name, window_title, pid)
         except Exception:
             pass
 

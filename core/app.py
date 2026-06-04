@@ -7,6 +7,7 @@ from PySide6.QtDBus import QDBusConnection, QDBusMessage, QDBusVirtualObject
 from PySide6.QtWidgets import QApplication
 
 from services.activity_service import ActivityService
+from services.app_info_service import AppInfoService
 from services.storage_service import StorageService
 from services.time_tracking import TimeTrackingService
 from services.window_tracker import WindowTrackerService
@@ -102,16 +103,19 @@ def main() -> None:
 
     storage.reset_active()
 
+    app_info_service = AppInfoService(window_tracker)
+
     _register_dbus_handler(window_tracker)
 
     from ui.main_window import MainWindow
-    window = MainWindow(activity_service, window_tracker, storage, time_tracking)
+    window = MainWindow(activity_service, window_tracker, storage, time_tracking, app_info_service)
     window.show()
 
     window_tracker.start()
 
     exit_code = app.exec()
     window_tracker.stop()
+    app_info_service.stop()
     logger.info("TrackIt exiting (code=%d)", exit_code)
     sys.exit(exit_code)
 
