@@ -8,10 +8,14 @@ from services.window_tracker import WindowTrackerService
 
 @pytest.fixture
 def services() -> tuple[StorageService, WindowTrackerService, ActivityService, TimeTrackingService]:
+    import re
+
+    from services.task_detector import DEFAULT_TASK_ID_REGEX, TaskDetector
     storage = StorageService(":memory:")
     window_tracker = WindowTrackerService()
     activity_service = ActivityService(storage)
-    time_tracking = TimeTrackingService(storage, window_tracker, activity_service)
+    detector = TaskDetector(re.compile(DEFAULT_TASK_ID_REGEX))
+    time_tracking = TimeTrackingService(storage, window_tracker, activity_service, detector)
     return storage, window_tracker, activity_service, time_tracking
 
 
