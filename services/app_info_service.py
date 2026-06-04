@@ -1,5 +1,6 @@
 import logging
 import os
+from dataclasses import replace
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
@@ -48,14 +49,7 @@ class AppInfoService(QObject):
         new_ram = self._read_ram_mb(pid)
         if new_ram == self._current_info.ram_mb:
             return
-        self._current_info = AppInfo(
-            pid=self._current_info.pid,
-            app_name=self._current_info.app_name,
-            window_title=self._current_info.window_title,
-            ram_mb=new_ram,
-            argv=self._current_info.argv,
-            opened_path=self._current_info.opened_path,
-        )
+        self._current_info = replace(self._current_info, ram_mb=new_ram)
         self.info_updated.emit(self._current_info)
 
     def _build_info(self, winfo: WindowInfo) -> AppInfo:

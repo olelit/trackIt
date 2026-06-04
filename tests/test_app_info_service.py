@@ -1,9 +1,11 @@
 import os
 import tempfile
+from unittest.mock import patch
 
 import pytest
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QApplication
 
+from models.app_info import AppInfo
 from models.window_info import WindowInfo
 from services.app_info_service import AppInfoService
 from services.window_tracker import WindowTrackerService
@@ -130,20 +132,12 @@ def test_read_argv_returns_empty_for_dead_pid() -> None:
 
 
 @pytest.fixture
-def qapp() -> QCoreApplication:
-    app = QCoreApplication.instance()
-    if app is None:
-        app = QCoreApplication([])
-    return app  # type: ignore[return-value]
-
-
-@pytest.fixture
-def tracker(qapp: QCoreApplication) -> WindowTrackerService:
+def tracker(qapp: QApplication) -> WindowTrackerService:
     return WindowTrackerService()
 
 
 @pytest.fixture
-def service(qapp: QCoreApplication, tracker: WindowTrackerService) -> AppInfoService:
+def service(qapp: QApplication, tracker: WindowTrackerService) -> AppInfoService:
     return AppInfoService(tracker)
 
 
@@ -188,3 +182,31 @@ def test_emits_info_updated_on_window_change(
 def test_stop_disconnects_timer(service: AppInfoService) -> None:
     service.stop()
     assert not service._ram_timer.isActive()
+
+
+def test_emits_info_updated_on_ram_timer(
+    service: AppInfoService, qtbot: pytest.fixture  # type: ignore[type-arg]
+) -> None:
+    """The 1Hz QTimer must emit info_updated with refreshed RAM."""
+    winfo = WindowInfo(app_name="konsole", window_title="Terminal", pid=os.getpid())
+    service._on_window_changed(winfo)
+    initial = service.current_info
+    assert initial is not None
+    initial_ram = initial.ram_mb
+
+    with patch.object(service, "_read_ram_mb", return_value=999) as read_mock:
+        service._ram_timer.setInterval(50)
+        service._ram_timer.start()
+        with qtbot.waitSignal(service.info_updated, timeout=1000) as blocker:
+            pass
+        read_mock.assert_called()
+        new_info = blocker.args[0]
+        assert isinstance(new_info, AppInfo)
+        assert new_info.ram_mb == 999
+        assert new_info.ram_mb != initial_ram
+        assert new_info.pid == initial.pid
+        assert new_info.app_name == initial.app_name
+        assert new_info.window_title == initial.window_title
+        assert new_info.argv == initial.argv
+        assert new_info.opened_path == initial.opened_path
+        service._ram_timer.stop()

@@ -9,14 +9,6 @@ from ui.debug_panel import DebugPanel
 
 
 @pytest.fixture
-def qapp() -> QApplication:
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app  # type: ignore[return-value]
-
-
-@pytest.fixture
 def service(qapp: QApplication) -> AppInfoService:
     return AppInfoService(WindowTrackerService())
 
