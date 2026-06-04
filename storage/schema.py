@@ -68,6 +68,89 @@ def migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
     logger.info("Migrated schema v1 -> v2")
 
 
+def _get_table_columns(conn: sqlite3.Connection, table_name: str) -> list[str]:
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return [r[1] for r in rows]
+
+
+def _get_column_type(conn: sqlite3.Connection, table_name: str, column_name: str) -> str | None:
+    for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall():
+        cid, name, ctype, notnull, dflt, pk = row
+        if name == column_name:
+            return (ctype or "").upper()
+    return None
+
+
+def _migrate_legacy_task_schema(conn: sqlite3.Connection) -> None:
+    """Migrate a DB whose `task` table predates the current design.
+
+    Legacy (from an earlier experiment outside this repo's history):
+        task(id INTEGER PK, activity_id, task_key, task_name, source, last_seen_ts)
+        app_usage.task_id INTEGER NOT NULL DEFAULT 0
+
+    New (post-#2):
+        task(id TEXT PK, title, first_seen_ts)
+        app_usage.task_id TEXT NULL
+
+    Idempotent: no-op if `task` is already on the new schema.
+    """
+    task_cols = _get_table_columns(conn, "task")
+    if not task_cols:
+        return
+
+    # Detect legacy task table (has old task_key/task_name columns).
+    if "task_key" not in task_cols and "task_name" not in task_cols:
+        return
+
+    logger.info("Migrating legacy task table")
+
+    conn.execute("ALTER TABLE task RENAME TO task_legacy")
+    conn.execute(CREATE_TASK_TABLE)
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO task (id, title, first_seen_ts)
+        SELECT task_key, task_name, last_seen_ts
+        FROM task_legacy
+        WHERE task_key != ''
+        """
+    )
+
+    # Migrate app_usage.task_id from INTEGER to TEXT (if still legacy).
+    # Keep task_legacy around until app_usage is migrated so we can map
+    # each legacy integer task_id to its (possibly non-existent) new id.
+    app_cols = _get_table_columns(conn, "app_usage")
+    if "task_id" in app_cols:
+        task_id_type = _get_column_type(conn, "app_usage", "task_id")
+        if task_id_type != "TEXT":
+            logger.info("Migrating app_usage.task_id from %s to TEXT", task_id_type)
+            conn.execute("ALTER TABLE app_usage RENAME TO app_usage_legacy")
+            conn.execute(CREATE_APP_USAGE_TABLE)
+            conn.execute(
+                """
+                INSERT INTO app_usage (
+                    id, activity_id, app_name, window_title,
+                    duration_seconds, last_seen_ts, task_id
+                )
+                SELECT
+                    a.id, a.activity_id, a.app_name, a.window_title,
+                    a.duration_seconds, a.last_seen_ts,
+                    CASE
+                        WHEN a.task_id = 0 THEN NULL
+                        WHEN t.id IS NULL THEN NULL
+                        ELSE t.id
+                    END
+                FROM app_usage_legacy a
+                LEFT JOIN task_legacy tl ON tl.id = a.task_id
+                LEFT JOIN task t ON t.id = tl.task_key
+                """
+            )
+            conn.execute("DROP TABLE app_usage_legacy")
+            conn.execute(CREATE_APP_USAGE_TASK_INDEX)
+
+    conn.execute("DROP TABLE task_legacy")
+    conn.commit()
+
+
 def initialize_schema(conn: sqlite3.Connection) -> None:
     """Idempotent schema initializer. Applies missing migrations, then runs the v2 schema as a safety net."""
     version = _get_user_version(conn)
@@ -87,4 +170,9 @@ def initialize_schema(conn: sqlite3.Connection) -> None:
     conn.execute(CREATE_TASK_TABLE)
     conn.execute(CREATE_APP_USAGE_TASK_INDEX)
     conn.commit()
+
+    # Repair DBs created by a previous (pre-#2) design that have legacy columns
+    # the CREATE-IF-NOT-E safety net cannot replace.
+    _migrate_legacy_task_schema(conn)
+
     logger.info("Schema initialized (version %d)", SCHEMA_VERSION)
