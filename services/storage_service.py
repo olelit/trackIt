@@ -1,7 +1,7 @@
 import logging
 import sqlite3
 
-from storage.repository import ActivityRepository, AppUsageRepository
+from storage.repository import ActivityRepository, AppUsageRepository, TaskRepository
 from storage.schema import initialize_schema
 
 logger = logging.getLogger(__name__)
@@ -14,6 +14,7 @@ class StorageService:
         initialize_schema(self.conn)
         self.activities = ActivityRepository(self.conn)
         self.app_usage = AppUsageRepository(self.conn)
+        self.tasks = TaskRepository(self.conn)
         logger.info("StorageService initialized (db=%s)", db_path)
 
     def reset_active(self) -> None:

@@ -8,7 +8,9 @@ from PySide6.QtWidgets import QApplication
 
 from services.activity_service import ActivityService
 from services.app_info_service import AppInfoService
+from services.config_service import ConfigService, find_project_root
 from services.storage_service import StorageService
+from services.task_detector import TaskDetector
 from services.time_tracking import TimeTrackingService
 from services.window_tracker import WindowTrackerService
 
@@ -86,10 +88,12 @@ def create_app() -> QApplication:
     return app
 
 
-def create_services(storage: StorageService) -> tuple[WindowTrackerService, ActivityService, TimeTrackingService]:
+def create_services(
+    storage: StorageService, detector: TaskDetector,
+) -> tuple[WindowTrackerService, ActivityService, TimeTrackingService]:
     window_tracker = WindowTrackerService()
     activity_service = ActivityService(storage)
-    time_tracking = TimeTrackingService(storage, window_tracker, activity_service)
+    time_tracking = TimeTrackingService(storage, window_tracker, activity_service, detector)
     return window_tracker, activity_service, time_tracking
 
 
@@ -99,7 +103,12 @@ def main() -> None:
     logger.info("Starting TrackIt (db=%s)", db_path)
 
     storage = StorageService(db_path)
-    window_tracker, activity_service, time_tracking = create_services(storage)
+
+    project_root = find_project_root(Path(__file__).resolve().parent)
+    config = ConfigService(project_root)
+    detector = config.task_detector
+
+    window_tracker, activity_service, time_tracking = create_services(storage, detector)
 
     storage.reset_active()
 

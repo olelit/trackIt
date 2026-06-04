@@ -1,5 +1,8 @@
+import re
+
 from services.activity_service import ActivityService
 from services.storage_service import StorageService
+from services.task_detector import DEFAULT_TASK_ID_REGEX, TaskDetector
 from services.time_tracking import TimeTrackingService
 from services.window_tracker import WindowTrackerService
 
@@ -12,7 +15,8 @@ def test_full_tracking_flow() -> None:
     storage = StorageService(":memory:")
     window_tracker = WindowTrackerService()
     activity_service = ActivityService(storage)
-    _time_tracking = TimeTrackingService(storage, window_tracker, activity_service)
+    detector = TaskDetector(re.compile(DEFAULT_TASK_ID_REGEX))
+    _time_tracking = TimeTrackingService(storage, window_tracker, activity_service, detector)
 
     work = activity_service.create_activity("Work")
     study = activity_service.create_activity("Study")

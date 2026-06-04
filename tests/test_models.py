@@ -68,4 +68,4 @@ def test_models_are_dataclasses() -> None:
     assert window_fields == ["app_name", "window_title", "pid"]
 
     usage_fields = [f.name for f in fields(AppUsage)]
-    assert usage_fields == ["id", "activity_id", "app_name", "window_title", "duration_seconds", "last_seen_ts"]
+    assert usage_fields == ["id", "activity_id", "app_name", "window_title", "duration_seconds", "last_seen_ts", "task_id"]
