@@ -50,7 +50,7 @@ class TestConfigService:
         (tmp_path / CONFIG_FILENAME).write_text(json.dumps({"task_id_regex": r"#(\d+)"}))
         service = ConfigService(project_root=tmp_path)
         result = service.task_detector.detect("Some title #42")
-        assert result.task_id == "#42"
+        assert result.task_id == "42"
 
     def test_invalid_json_falls_back_to_default(self, tmp_path) -> None:
         path = tmp_path / CONFIG_FILENAME

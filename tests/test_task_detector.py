@@ -88,5 +88,13 @@ def test_custom_regex() -> None:
     """A custom regex (e.g. for GitLab-style) should work too."""
     detector = TaskDetector(re.compile(r"#(\d+)"))
     result = detector.detect("Some title #42 extra")
-    assert result.task_id == "#42"
+    assert result.task_id == "42"
+    assert result.task_title == "Some title"
+
+
+def test_custom_regex_strips_prefix_from_capture_group() -> None:
+    """When the regex has a prefix, the task_id is just the captured group, not the full match."""
+    detector = TaskDetector(re.compile(r"Task:\s*([\w-]+)"))
+    result = detector.detect("Some title Task: DRIVE-1 - more text")
+    assert result.task_id == "DRIVE-1"
     assert result.task_title == "Some title"

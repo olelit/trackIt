@@ -79,6 +79,5 @@ def test_task_label_omits_title_when_none(widget: ActivityDetailWidget) -> None:
     )
     widget.show_activity(activity.id)
     drive = widget._tree.topLevelItem(0).child(0)
-    assert "DRIVE-1" in drive.text(0)
-    assert "—" not in drive.text(0) or "—" in drive.text(0)  # the title-with-em-dash form
-    # When title is None, the label is "DRIVE-1 — 1m" (with em-dash, no title part)
+    assert drive.text(0).startswith("DRIVE-1")
+    assert drive.text(0).endswith("1m 00s")  # the duration part

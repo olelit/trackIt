@@ -11,6 +11,8 @@ def conn() -> sqlite3.Connection:
     c = sqlite3.connect(":memory:")
     c.execute("PRAGMA foreign_keys = ON")
     initialize_schema(c)
+    c.execute("INSERT INTO activity (id, name, is_active, total_duration_seconds) VALUES (1, 'Test', 0, 0)")
+    c.commit()
     return c
 
 

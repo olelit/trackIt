@@ -118,11 +118,6 @@ class AppUsageRepository:
                     "INSERT OR IGNORE INTO task (id, title, first_seen_ts) VALUES (?, NULL, ?)",
                     (usage.task_id, now),
                 )
-            self._conn.execute(
-                "INSERT OR IGNORE INTO activity (id, name, is_active, total_duration_seconds)"
-                " VALUES (?, '', 0, 0)",
-                (usage.activity_id,),
-            )
             cursor = self._conn.execute(
                 "INSERT INTO app_usage"
                 " (activity_id, app_name, window_title, duration_seconds, last_seen_ts, task_id)"
@@ -174,11 +169,6 @@ class AppUsageRepository:
                     "INSERT OR IGNORE INTO task (id, title, first_seen_ts) VALUES (?, NULL, ?)",
                     (task_id, now),
                 )
-            self._conn.execute(
-                "INSERT OR IGNORE INTO activity (id, name, is_active, total_duration_seconds)"
-                " VALUES (?, '', 0, 0)",
-                (activity_id,),
-            )
             self._conn.execute(
                 "INSERT INTO app_usage"
                 " (activity_id, app_name, duration_seconds, last_seen_ts, task_id)"

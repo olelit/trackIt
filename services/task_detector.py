@@ -28,7 +28,7 @@ class TaskDetector:
         if match is None:
             return TaskKey(None, None)
 
-        task_id = match.group(0)
+        task_id = match.group(1)
         prefix = window_title[: match.start()].rstrip(_STRIP_CHARS)
         suffix = window_title[match.end():].lstrip(_STRIP_CHARS)
         if prefix:
